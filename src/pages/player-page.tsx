@@ -14,6 +14,7 @@ import { ListVideo } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "lucide-react";
 import { fetchWithProxy } from "@/utils/proxy";
+
 // --- Interfaces ---
 interface Episode {
   number: string;
@@ -62,13 +63,10 @@ function PlayerPage() {
     if (!movieDetails?.vod_play_url) return [];
     try {
       let playUrlData = movieDetails.vod_play_url;
-      // 检查是否包含 $$$，如果包含则取最后一个分段
       if (playUrlData.includes("$$$")) {
         const parts = playUrlData.split("$$$");
         playUrlData = parts[parts.length - 1];
       }
-
-      // 使用 # 分割剧集信息
       return playUrlData
         .split("#")
         .map((part: string) => {
@@ -86,15 +84,10 @@ function PlayerPage() {
   }, [movieDetails]);
 
   const sortedEpisodes = useMemo(() => {
-    // 如果是正序，直接返回原始顺序的副本
-    if (sortOrder === "asc") {
-      return [...episodes];
-    }
-    // 如果是倒序，返回反转后的副本
+    if (sortOrder === "asc") return [...episodes];
     return [...episodes].reverse();
   }, [episodes, sortOrder]);
 
-  // --- Effects ---
   useEffect(() => {
     if (!vodId) {
       setError("无效的视频 ID");
@@ -107,25 +100,15 @@ function PlayerPage() {
       setMovieDetails(null);
       setCurrentSource(null);
       try {
-        if (!sourceKey) {
-          throw new Error("缺少视频源参数 (source)");
-        }
+        if (!sourceKey) throw new Error("缺少视频源参数 (source)");
 
-        // 加载默认和自定义站点
         const defaultSites = API_SITES;
         const customSites: ApiSite[] = JSON.parse(localStorage.getItem("customApiSites") || "[]");
         const allSites = [...defaultSites, ...customSites];
-
-        // 查找对应的站点 API
         const foundSite = allSites.find((site) => site.key === sourceKey);
-
-        if (!foundSite) {
-          throw new Error(`未找到源: ${sourceKey}`);
-        }
+        if (!foundSite) throw new Error(`未找到源: ${sourceKey}`);
 
         const apiBase = foundSite.api;
-
-        // 使用 ac=detail 获取详情
         const targetUrl = `${apiBase}/api.php/provide/vod/?ac=detail&ids=${vodId}`;
         const response = await fetchWithProxy(targetUrl);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -147,7 +130,6 @@ function PlayerPage() {
 
   useEffect(() => {
     if (episodes.length > 0) {
-      // 如果有初始集数，尝试使用它
       if (initialEpNum) {
         const decodedEpNum = decodeURIComponent(initialEpNum);
         const initialEpisode = episodes.find((ep: Episode) => ep.number === decodedEpNum);
@@ -157,7 +139,6 @@ function PlayerPage() {
         }
       }
 
-      // 尝试从历史记录中获取上次播放的集数
       if (vodId && sourceKey) {
         try {
           const raw = localStorage.getItem("playHistory");
@@ -169,11 +150,7 @@ function PlayerPage() {
               if (historyEpisode) {
                 setCurrentSource(historyEpisode.url);
                 setSearchParams(
-                  {
-                    vodId: vodId,
-                    epNum: encodeURIComponent(historyEpisode.number),
-                    source: sourceKey,
-                  },
+                  { vodId, epNum: encodeURIComponent(historyEpisode.number), source: sourceKey },
                   { replace: true }
                 );
                 return;
@@ -185,14 +162,9 @@ function PlayerPage() {
         }
       }
 
-      // 如果以上都没有，默认播放第一集
       setCurrentSource(episodes[0].url);
       setSearchParams(
-        {
-          vodId: vodId!,
-          epNum: encodeURIComponent(episodes[0].number),
-          source: sourceKey || "",
-        },
+        { vodId: vodId!, epNum: encodeURIComponent(episodes[0].number), source: sourceKey || "" },
         { replace: true }
       );
     } else {
@@ -200,7 +172,6 @@ function PlayerPage() {
     }
   }, [episodes, initialEpNum, vodId, sourceKey, setSearchParams]);
 
-  // 从本地存储加载播放记录和设置
   useEffect(() => {
     if (vodId && sourceKey) {
       try {
@@ -214,11 +185,7 @@ function PlayerPage() {
             setSkipEnd(currentItem.skipEnd);
             if (initialEpNum === null) {
               setSearchParams(
-                {
-                  vodId: vodId,
-                  epNum: encodeURIComponent(currentItem.episode),
-                  source: sourceKey,
-                },
+                { vodId, epNum: encodeURIComponent(currentItem.episode), source: sourceKey },
                 { replace: true }
               );
             }
@@ -230,7 +197,6 @@ function PlayerPage() {
     }
   }, [vodId, sourceKey, initialEpNum, setSearchParams]);
 
-  // 写入播放记录
   const writePlayHistory = (episode: Episode) => {
     if (!movieDetails) return;
     const item: PlayHistoryItem = {
@@ -240,9 +206,9 @@ function PlayerPage() {
       episode: String(episode.number),
       timestamp: Date.now(),
       source: sourceKey || "",
-      sortOrder: sortOrder,
-      skipStart: skipStart,
-      skipEnd: skipEnd,
+      sortOrder,
+      skipStart,
+      skipEnd,
     };
     try {
       const raw = localStorage.getItem("playHistory");
@@ -251,12 +217,9 @@ function PlayerPage() {
       arr.unshift(item);
       if (arr.length > 20) arr = arr.slice(0, 20);
       localStorage.setItem("playHistory", JSON.stringify(arr));
-    } catch {
-      // ignore
-    }
+    } catch {}
   };
 
-  // 更新跳过设置
   const updateSkipSettings = (newSkipStart: number, newSkipEnd: number) => {
     setSkipStart(newSkipStart);
     setSkipEnd(newSkipEnd);
@@ -321,61 +284,17 @@ function PlayerPage() {
                 html: "片头跳过",
                 tooltip: `${skipStart}秒`,
                 selector: [
-                  {
-                    default: skipStart === 0,
-                    html: "0秒",
-                    value: 0,
-                  },
-                  {
-                    default: skipStart === 30,
-                    html: "30秒",
-                    value: 30,
-                  },
-                  {
-                    default: skipStart === 60,
-                    html: "1分钟",
-                    value: 60,
-                  },
-                  {
-                    default: skipStart === 90,
-                    html: "1分30秒",
-                    value: 90,
-                  },
-                  {
-                    default: skipStart === 120,
-                    html: "2分钟",
-                    value: 120,
-                  },
-                  {
-                    default: skipStart === 150,
-                    html: "2分30秒",
-                    value: 150,
-                  },
-                  {
-                    default: skipStart === 180,
-                    html: "3分钟",
-                    value: 180,
-                  },
-                  {
-                    default: skipStart === 210,
-                    html: "3分30秒",
-                    value: 210,
-                  },
-                  {
-                    default: skipStart === 240,
-                    html: "4分钟",
-                    value: 240,
-                  },
-                  {
-                    default: skipStart === 270,
-                    html: "4分30秒",
-                    value: 270,
-                  },
-                  {
-                    default: skipStart === 300,
-                    html: "5分钟",
-                    value: 300,
-                  },
+                  { default: skipStart === 0, html: "0秒", value: 0 },
+                  { default: skipStart === 30, html: "30秒", value: 30 },
+                  { default: skipStart === 60, html: "1分钟", value: 60 },
+                  { default: skipStart === 90, html: "1分30秒", value: 90 },
+                  { default: skipStart === 120, html: "2分钟", value: 120 },
+                  { default: skipStart === 150, html: "2分30秒", value: 150 },
+                  { default: skipStart === 180, html: "3分钟", value: 180 },
+                  { default: skipStart === 210, html: "3分30秒", value: 210 },
+                  { default: skipStart === 240, html: "4分钟", value: 240 },
+                  { default: skipStart === 270, html: "4分30秒", value: 270 },
+                  { default: skipStart === 300, html: "5分钟", value: 300 },
                 ],
                 onSelect: function (item) {
                   updateSkipSettings(item.value, skipEnd);
@@ -386,61 +305,17 @@ function PlayerPage() {
                 html: "片尾跳过",
                 tooltip: `${skipEnd}秒`,
                 selector: [
-                  {
-                    default: skipEnd === 0,
-                    html: "0秒",
-                    value: 0,
-                  },
-                  {
-                    default: skipEnd === 30,
-                    html: "30秒",
-                    value: 30,
-                  },
-                  {
-                    default: skipEnd === 60,
-                    html: "1分钟",
-                    value: 60,
-                  },
-                  {
-                    default: skipEnd === 90,
-                    html: "1分30秒",
-                    value: 90,
-                  },
-                  {
-                    default: skipEnd === 120,
-                    html: "2分钟",
-                    value: 120,
-                  },
-                  {
-                    default: skipEnd === 150,
-                    html: "2分30秒",
-                    value: 150,
-                  },
-                  {
-                    default: skipEnd === 180,
-                    html: "3分钟",
-                    value: 180,
-                  },
-                  {
-                    default: skipEnd === 210,
-                    html: "3分30秒",
-                    value: 210,
-                  },
-                  {
-                    default: skipEnd === 240,
-                    html: "4分钟",
-                    value: 240,
-                  },
-                  {
-                    default: skipEnd === 270,
-                    html: "4分30秒",
-                    value: 270,
-                  },
-                  {
-                    default: skipEnd === 300,
-                    html: "5分钟",
-                    value: 300,
-                  },
+                  { default: skipEnd === 0, html: "0秒", value: 0 },
+                  { default: skipEnd === 30, html: "30秒", value: 30 },
+                  { default: skipEnd === 60, html: "1分钟", value: 60 },
+                  { default: skipEnd === 90, html: "1分30秒", value: 90 },
+                  { default: skipEnd === 120, html: "2分钟", value: 120 },
+                  { default: skipEnd === 150, html: "2分30秒", value: 150 },
+                  { default: skipEnd === 180, html: "3分钟", value: 180 },
+                  { default: skipEnd === 210, html: "3分30秒", value: 210 },
+                  { default: skipEnd === 240, html: "4分钟", value: 240 },
+                  { default: skipEnd === 270, html: "4分30秒", value: 270 },
+                  { default: skipEnd === 300, html: "5分钟", value: 300 },
                 ],
                 onSelect: function (item) {
                   updateSkipSettings(skipStart, item.value);
@@ -472,41 +347,30 @@ function PlayerPage() {
         },
       });
 
-      // 监听视频播放完毕事件
       art.on("video:ended", () => {
         const currentIndex = sortedEpisodes.findIndex((ep) => ep.url === currentSource);
         let nextEpisode: Episode | undefined;
-
         if (sortOrder === "asc") {
-          // 正序播放，下一集索引 +1
           nextEpisode = sortedEpisodes[currentIndex + 1];
         } else {
-          // 倒序播放，下一集索引 -1
           nextEpisode = sortedEpisodes[currentIndex - 1];
         }
-
         if (nextEpisode) {
-          // 如果还有下一集，自动播放下一集
           handleEpisodeSelect(nextEpisode);
         } else {
-          // 没有下一集，显示播放完毕提示
           art.notice.show = "全部剧集已播放完毕";
         }
       });
 
-      // 监听视频加载完成事件
       art.on("video:loadedmetadata", () => {
-        // 设置初始播放位置（跳过片头）
         if (skipStart > 0) {
           art.seek = skipStart;
         }
       });
 
-      // 监听视频播放进度
       art.on("video:timeupdate", () => {
         const duration = art.duration;
         const currentTime = art.currentTime;
-        // 如果接近片尾，自动跳过
         if (skipEnd > 0 && duration - currentTime <= skipEnd) {
           art.seek = duration;
         }
@@ -522,11 +386,9 @@ function PlayerPage() {
     }
   }, [currentSource, vodId, sortedEpisodes, sourceKey, skipStart, skipEnd]);
 
-  // --- Event Handlers ---
   const toggleSortOrder = () => {
     setSortOrder((prev) => {
       const newOrder = prev === "asc" ? "desc" : "asc";
-      // 更新本地存储中的排序状态
       if (movieDetails) {
         try {
           const raw = localStorage.getItem("playHistory");
@@ -549,7 +411,6 @@ function PlayerPage() {
   const handleEpisodeSelect = (episode: Episode) => {
     setCurrentSource(episode.url);
     setSearchParams({ vodId: vodId!, epNum: encodeURIComponent(episode.number), source: sourceKey || "" }, { replace: true });
-    // 切集时也写入历史，带上sourceKey
     if (movieDetails) {
       const item: PlayHistoryItem = {
         vodId: String(movieDetails.vod_id),
@@ -558,9 +419,9 @@ function PlayerPage() {
         episode: String(episode.number),
         timestamp: Date.now(),
         source: sourceKey || "",
-        sortOrder: sortOrder,
-        skipStart: skipStart,
-        skipEnd: skipEnd,
+        sortOrder,
+        skipStart,
+        skipEnd,
       };
       try {
         const raw = localStorage.getItem("playHistory");
@@ -569,13 +430,10 @@ function PlayerPage() {
         arr.unshift(item);
         if (arr.length > 20) arr = arr.slice(0, 20);
         localStorage.setItem("playHistory", JSON.stringify(arr));
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
   };
 
-  // 获取所有启用的资源站
   const getAllEnabledSites = useMemo(() => {
     const selectedKeys = getSelectedApiSites();
     const defaultSites = API_SITES.filter((site) => selectedKeys.includes(site.key));
@@ -584,12 +442,9 @@ function PlayerPage() {
     return [...defaultSites, ...selectedCustomSites];
   }, []);
 
-  // 搜索其他资源站的相同视频
   const searchOtherSources = async () => {
     if (!movieDetails?.vod_name) return;
-
     const sources: { key: string; name: string }[] = [];
-
     try {
       await Promise.all(
         getAllEnabledSites.map(async (site) => {
@@ -597,17 +452,13 @@ function PlayerPage() {
             sources.push({ key: site.key, name: site.name });
             return;
           }
-
           const targetUrl = `${site.api}/api.php/provide/vod/?ac=videolist&wd=${encodeURIComponent(movieDetails.vod_name)}`;
-
           try {
             const response = await fetchWithProxy(targetUrl);
             if (!response.ok) return;
             const data = await response.json();
-
             if (data.code === 1 && data.list) {
               const exactMatch = data.list.find((item: Movie) => item.vod_name === movieDetails.vod_name);
-
               if (exactMatch) {
                 sources.push({ key: site.key, name: site.name });
               }
@@ -617,35 +468,27 @@ function PlayerPage() {
           }
         })
       );
-
       setAvailableSources(sources);
     } catch (error) {
       console.error("Error searching other sources:", error);
     }
   };
 
-  // 处理资源站切换
   const handleSourceChange = async (newSourceKey: string) => {
     if (!movieDetails?.vod_name || newSourceKey === sourceKey) return;
-
     const targetUrl = `${getAllEnabledSites.find((site) => site.key === newSourceKey)?.api}/api.php/provide/vod/?ac=videolist&wd=${encodeURIComponent(movieDetails.vod_name)}`;
     try {
       const response = await fetchWithProxy(targetUrl);
       if (!response.ok) return;
       const data = await response.json();
-
       if (data.code === 1 && data.list) {
         const matchedVideo = data.list.find((item: Movie) => item.vod_name === movieDetails.vod_name);
-
         if (matchedVideo) {
           const currentEpNum = sortedEpisodes.find((ep) => ep.url === currentSource)?.number;
           const newVodId = matchedVideo.vod_id;
-
-          // 获取新资源站的剧集列表
           const detailUrl = `${getAllEnabledSites.find((site) => site.key === newSourceKey)?.api}/api.php/provide/vod/?ac=detail&ids=${newVodId}`;
           const detailResponse = await fetchWithProxy(detailUrl);
           const detailData = await detailResponse.json();
-
           if (detailData.code === 1 && detailData.list && detailData.list.length > 0) {
             const newEpisodes = detailData.list[0].vod_play_url
               .split("#")
@@ -657,18 +500,10 @@ function PlayerPage() {
                 return null;
               })
               .filter((ep: Episode | null): ep is Episode => ep !== null);
-
-            // 查找匹配的剧集号
             const targetEpisode = newEpisodes.find((ep: Episode) => ep.number === currentEpNum);
             const targetEpNum = targetEpisode ? currentEpNum : newEpisodes[0].number;
-
-            // 更新 URL 参数
             setSearchParams(
-              {
-                vodId: String(newVodId),
-                epNum: encodeURIComponent(targetEpNum),
-                source: newSourceKey,
-              },
+              { vodId: String(newVodId), epNum: encodeURIComponent(targetEpNum), source: newSourceKey },
               { replace: true }
             );
           }
@@ -679,14 +514,12 @@ function PlayerPage() {
     }
   };
 
-  // 在视频详情加载完成后搜索其他资源站
   useEffect(() => {
     if (movieDetails?.vod_name) {
       searchOtherSources();
     }
   }, [movieDetails?.vod_name]);
 
-  // --- Final Calculations for Render ---
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -709,7 +542,6 @@ function PlayerPage() {
     );
   }
 
-  // --- Render ---
   return (
     <>
       <div className="min-h-screen bg-background">
@@ -767,26 +599,25 @@ function PlayerPage() {
                       {sortOrder === "asc" ? "正序" : "倒序"}
                     </Button>
                   </div>
-                 
-                    <ScrollArea className="h-[300px] md:h-[400px] xl:h-[480px]">
-                      <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-5 gap-2">
-                        {sortedEpisodes.map((ep) => (
-                          <Button
-                            key={ep.number + ep.url}
-                            variant={currentSource === ep.url ? "default" : "outline"}
-                            size="sm"
-                            className={`h-10 w-full transition-all duration-200 ${
-                              currentSource === ep.url ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-border/50 hover:border-primary/50 hover:bg-primary/5"
-                            }`}
-                            onClick={() => handleEpisodeSelect(ep)}>
-                            {ep.number}
-                          </Button>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                
+                  <ScrollArea className="h-[300px] md:h-[400px] xl:h-[480px]">
+                    <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-5 gap-2">
+                      {sortedEpisodes.map((ep) => (
+                        <Button
+                          key={ep.number + ep.url}
+                          variant={currentSource === ep.url ? "default" : "outline"}
+                          size="sm"
+                          className={`h-10 w-full transition-all duration-200 ${
+                            currentSource === ep.url ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-border/50 hover:border-primary/50 hover:bg-primary/5"
+                          }`}
+                          onClick={() => handleEpisodeSelect(ep)}>
+                          {ep.number}
+                        </Button>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </CardContent>
               </Card>
+
               {/* 采集站切换 */}
               <Card className="border-border/50 bg-card/50 p-0">
                 <CardContent className="p-4">
@@ -806,8 +637,8 @@ function PlayerPage() {
                 </CardContent>
               </Card>
             </div>
-          </div>{" "}
-        </div>{" "}
+          </div>
+        </div>
       </div>
     </>
   );
