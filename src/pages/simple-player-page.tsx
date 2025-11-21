@@ -49,24 +49,24 @@ function SimplePlayerPage() {
         fastForward: true,
         theme: "#23ade5",
         customType: {
-          m3u8(video, url, art) {
-            if (Hls.isSupported()) {
-              if (art.hls) art.hls.destroy();
-              const hls = new Hls();
-              const proxyUrl = localStorage.getItem("m3u8ProxySelected");
-              const finalUrl = proxyUrl ? `${proxyUrl}${url}` : url;
-              hls.loadSource(finalUrl);
-              hls.attachMedia(video);
-              art.hls = hls;
-              art.on("destroy", () => hls.destroy());
-            } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-              const proxyUrl = localStorage.getItem("m3u8ProxySelected");
-              video.src = proxyUrl ? `${proxyUrl}${url}` : url;
-            } else {
-              art.notice.show = "不支持的播放格式: m3u8";
-            }
-          },
-        },
+  m3u8(video, url, art) {
+    if (Hls.isSupported()) {
+      if ((art as any).hls) (art as any).hls.destroy();   // ✅ 修复
+      const hls = new Hls();
+      const proxyUrl = localStorage.getItem("m3u8ProxySelected");
+      const finalUrl = proxyUrl ? `${proxyUrl}${url}` : url;
+      hls.loadSource(finalUrl);
+      hls.attachMedia(video);
+      (art as any).hls = hls;                             // ✅ 断言
+      art.on("destroy", () => hls.destroy());
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      const proxyUrl = localStorage.getItem("m3u8ProxySelected");
+      video.src = proxyUrl ? `${proxyUrl}${url}` : url;
+    } else {
+      art.notice.show = "不支持的播放格式: m3u8";
+    }
+  },
+}
       });
 
       playerRef.current = art;
